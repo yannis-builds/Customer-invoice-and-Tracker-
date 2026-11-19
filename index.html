@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Customer Invoice Tracker</title>
+<style>
+  :root{
+    --ink:#0f1222; --bg:#f4f5fb; --card:#ffffff; --accent:#4338ff;
+    --accent-soft:#ecebff; --paid:#0e9f6e; --paid-soft:#e3f7ef;
+    --unpaid:#6b7280; --unpaid-soft:#eef0f4; --late:#d92d20; --late-soft:#fdecea;
+    --line:#e3e5ee;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);line-height:1.45}
+  header{background:var(--ink);color:#fff;padding:20px 16px 24px}
+  header h1{font-size:1.5rem;font-weight:800;letter-spacing:-.5px}
+  header p{color:#9aa0c3;font-size:.85rem;margin-top:2px}
+  main{max-width:680px;margin:0 auto;padding:16px 16px 48px}
+  section{margin-top:20px}
+  .sec-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px;gap:8px}
+  .sec-head h2{font-size:1.05rem;font-weight:800;letter-spacing:-.3px}
+  .sec-head span{font-size:.78rem;color:var(--unpaid);text-align:right}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+
+  /* Import */
+  .drop{border:2px dashed var(--accent);background:var(--accent-soft);border-radius:14px;padding:22px 16px;text-align:center;cursor:pointer;transition:.15s}
+  .drop:hover{filter:brightness(.97)}
+  .drop strong{display:block;font-size:.95rem}
+  .drop small{color:var(--unpaid);font-size:.78rem}
+  .drop .icon{font-size:1.6rem;display:block;margin-bottom:6px}
+  #fileInput{display:none}
+  .import-status{margin-top:10px;font-size:.82rem;border-radius:10px;padding:10px 12px;display:none}
+  .ok{background:var(--paid-soft);color:var(--paid);display:block}
+  .err{background:var(--late-soft);color:var(--late);display:block}
+
+  /* Customers */
+  .cust{display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;border:1.5px solid transparent;cursor:pointer;transition:.15s}
+  .cust:hover{background:var(--accent-soft)}
+  .cust.active{border-color:var(--accent);background:var(--accent-soft)}
+  .cust + .cust{margin-top:8px}
+  .avatar{width:42px;height:42px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0;font-size:.8rem}
+  .cust-info{flex:1;min-width:0}
+  .cust-info strong{display:block;font-size:.95rem;word-break:break-all}
+  .cust-info small{color:var(--unpaid);font-size:.78rem}
+  .cust-stats{text-align:right;flex-shrink:0}
+  .cust-stats b{display:block;font-size:1rem}
+  .cust-stats small{color:var(--unpaid);font-size:.72rem}
+
+  .badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:.72rem;font-weight:700}
+  .b-paid{background:var(--paid-soft);color:var(--paid)}
+  .b-unpaid{background:var(--unpaid-soft);color:var(--unpaid)}
+  .b-late{background:var(--late-soft);color:var(--late)}
+
+  /* Form */
+  label{display:block;font-size:.78rem;font-weight:700;margin:12px 0 4px;color:#33375a}
+  input,select,textarea{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;font:inherit;font-size:.92rem;background:#fbfbfe}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);background:#fff}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .btn{display:inline-block;width:100%;margin-top:16px;padding:12px;border:none;border-radius:12px;background:var(--accent);color:#fff;font:inherit;font-size:.95rem;font-weight:700;cursor:pointer}
+  .btn:hover{filter:brightness(1.1)}
+  .btn-ghost{background:#fff;color:var(--accent);border:1.5px solid var(--accent);padding:8px 14px;border-radius:10px;font:inherit;font-size:.8rem;font-weight:700;cursor:pointer;margin-top:10px}
+  .src-line{margin-top:12px;background:var(--unpaid-soft);border-radius:10px;padding:10px 12px;font-size:.8rem;color:#33375a}
+  .src-line b{font-weight:800}
+  .calc-line{margin-top:12px;text-align:right;font-size:.9rem;font-weight:700;color:var(--accent)}
+  .prow{display:grid;grid-template-columns:1fr 74px 86px 86px;gap:6px;align-items:center;margin-top:6px}
+  .prow .plabel{font-size:.78rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .prow input{padding:7px 8px;font-size:.85rem;text-align:right}
+  .prow .pfinal{font-size:.85rem;font-weight:800;text-align:right;color:var(--accent)}
+  .prow-head{display:grid;grid-template-columns:1fr 74px 86px 86px;gap:6px;font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--unpaid);margin-top:10px}
+  .prow-head span{text-align:right}
+  .prow-head span:first-child{text-align:left}
+  @media(max-width:480px){
+    .prow,.prow-head{grid-template-columns:1fr 62px 70px 70px;gap:4px}
+    .prow .plabel{font-size:.7rem;white-space:normal}
+  }
+
+  /* Pivot summary */
+  .pivot-box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+  .pivot-box h3{font-size:.85rem;font-weight:800;margin-bottom:10px}
+  .pivot-box h3 small{font-weight:600;color:var(--unpaid)}
+  .pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .pbox{border-radius:12px;padding:10px 6px;text-align:center}
+  .pbox b{display:block;font-size:.9rem;word-break:break-all}
+  .pbox small{font-size:.64rem;font-weight:700;opacity:.85;display:block}
+  .p-own{background:var(--accent-soft);color:var(--accent)}
+  .p-disc{background:var(--unpaid-soft);color:var(--unpaid)}
+  .p-vou{background:var(--unpaid-soft);color:var(--unpaid)}
+  .p-tax{background:var(--unpaid-soft);color:var(--unpaid)}
+  .p-fin{background:var(--ink);color:#fff;grid-column:span 3}
+  table{width:100%;border-collapse:collapse;margin-top:12px;font-size:.8rem}
+  th{text-align:left;color:var(--unpaid);font-size:.7rem;text-transform:uppercase;letter-spacing:.4px;padding:6px 4px;border-bottom:1.5px solid var(--line)}
+  td{padding:7px 4px;border-bottom:1px solid var(--line)}
+  td:last-child,th:last-child{text-align:right;font-weight:700}
+  td:first-child{font-weight:600}
+
+  /* Totals + invoices */
+  .totals{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+  .total-box{border-radius:12px;padding:10px;text-align:center}
+  .total-box b{display:block;font-size:.95rem}
+  .total-box small{font-size:.68rem;font-weight:700;opacity:.85}
+  .t-all{background:var(--accent-soft);color:var(--accent)}
+  .t-paid{background:var(--paid-soft);color:var(--paid)}
+  .t-due{background:var(--late-soft);color:var(--late)}
+  .inv{padding:12px 0;border-top:1px solid var(--line)}
+  .inv:first-of-type{border-top:none}
+  .inv-top{display:flex;justify-content:space-between;gap:10px;align-items:center}
+  .inv-top strong{font-size:.92rem}
+  .inv-top .amt{font-weight:800}
+  .inv-sub{display:flex;justify-content:space-between;align-items:center;margin-top:4px;font-size:.78rem;color:var(--unpaid);flex-wrap:wrap;gap:8px}
+  .inv-actions{display:flex;gap:8px;margin-top:8px}
+  .chip{flex:1;padding:7px;border-radius:9px;border:1.5px solid var(--line);background:#fff;font:inherit;font-size:.8rem;font-weight:700;cursor:pointer;color:var(--ink)}
+  .chip.paid.sel{background:var(--paid);border-color:var(--paid);color:#fff}
+  .chip.unpaid.sel{background:var(--unpaid);border-color:var(--unpaid);color:#fff}
+  .chip.late.sel{background:var(--late);border-color:var(--late);color:#fff}
+  .empty{text-align:center;color:var(--unpaid);padding:24px 0;font-size:.88rem}
+  .inv-table{margin-top:8px}
+  .inv-table td:last-child,.inv-table th:last-child{text-align:right}
+  .inv-sum{background:var(--unpaid-soft);border-radius:8px;padding:8px 10px;margin-top:6px}
+  .inv-sum .amt{color:var(--ink)}
+  @media(max-width:480px){
+    header h1{font-size:1.3rem}
+    .pgrid{grid-template-columns:repeat(3,1fr)}
+    .pbox b{font-size:.8rem}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Customer Invoice Tracker</h1>
+  <p>Cloud consumption billing by Owner Account ID — import your Excel bill to start</p>
+</header>
+<main>
+
+  <!-- 0. Import -->
+  <section>
+    <div class="sec-head"><h2>Import Bill Details</h2><span>.xlsx with L3 bill details</span></div>
+    <label class="drop" for="fileInput">
+      <span class="icon">📂</span>
+      <strong>Tap to upload your Excel file</strong>
+      <small>The app finds the bill-details sheet and builds the pivot for you.<br>Nothing is uploaded anywhere — parsing happens in your browser.</small>
+    </label>
+    <input type="file" id="fileInput" accept=".xlsx,.xlsm">
+    <div class="import-status" id="importStatus"></div>
+  </section>
+
+  <!-- 1. Customer Summary -->
+  <section>
+    <div class="sec-head"><h2>Customer Summary</h2><span>Tap an account to focus</span></div>
+    <div class="card" id="customerList"></div>
+  </section>
+
+  <!-- 2. Issue Invoice -->
+  <section>
+    <div class="sec-head"><h2>Issue Invoice</h2><span id="issueFor"></span></div>
+    <form class="card" id="invoiceForm">
+      <div class="row2" style="grid-template-columns:2fr 1fr;align-items:end">
+        <div><label for="fCustomer">Customer (Owner Account)</label><select id="fCustomer"></select></div>
+        <div><label for="fCustName">Customer name</label><input type="text" id="fCustName" placeholder="e.g. Acme Corp" style="height:42px"></div>
+      </div>
+      <div class="src-line" id="billSrc" style="display:none"></div>
+      <div class="row2">
+        <div><label for="fDate">Invoice date</label><input type="date" id="fDate" required></div>
+        <div><label for="fDue">Due date</label><input type="date" id="fDue" required></div>
+      </div>
+      <label>Products &amp; per-product discount to customer</label>
+      <div id="prodRows"></div>
+      <div class="calc-line" id="calcLine"></div>
+      <label for="fNote">Note (optional)</label>
+      <input type="text" id="fNote" placeholder="e.g. Cloud usage for October 2026">
+      <button class="btn" type="submit">Create Invoice</button>
+    </form>
+  </section>
+
+  <!-- 3. Payment Tracker -->
+  <section>
+    <div class="sec-head"><h2>Payment Tracker</h2><span id="trackFor"></span></div>
+    <div class="pivot-box" id="pivotBox" style="display:none"></div>
+    <div class="totals" id="totals"></div>
+    <div class="src-line" id="reconLine" style="display:none;margin-bottom:12px"></div>
+    <div class="card" id="invoiceList"></div>
+  </section>
+
+</main>
+
+<script>
+/* ================================================================
+   XLSX READER — zero dependencies (zip + XML parsed in the browser)
+   ================================================================ */
+async function unzip(buf){
+  const u8 = new Uint8Array(buf), dv = new DataView(buf);
+  let i = u8.length - 22;
+  while (i >= 0 && dv.getUint32(i, true) !== 0x06054b50) i--;
+  if (i < 0) throw new Error("This file is not a valid .xlsx (zip) file.");
+  const count = dv.getUint16(i + 10, true), cdOff = dv.getUint32(i + 16, true);
+  const entries = [];
+  let p = cdOff;
+  for (let k = 0; k < count; k++){
+    if (dv.getUint32(p, true) !== 0x02014b50) break;
+    const method = dv.getUint16(p + 10, true);
+    const compSize = dv.getUint32(p + 20, true);
+    const nameLen = dv.getUint16(p + 28, true);
+    const extraLen = dv.getUint16(p + 30, true);
+    const commLen = dv.getUint16(p + 32, true);
+    const localOff = dv.getUint32(p + 42, true);
+    const name = new TextDecoder().decode(u8.subarray(p + 46, p + 46 + nameLen));
+    const lhName = dv.getUint16(localOff + 26, true), lhExtra = dv.getUint16(localOff + 28, true);
+    const start = localOff + 30 + lhName + lhExtra;
+    entries.push({ name, method, data: u8.subarray(start, start + compSize) });
+    p += 46 + nameLen + extraLen + commLen;
+  }
+  const files = {};
+  for (const e of entries){
+    if (e.method === 0) files[e.name] = new TextDecoder().decode(e.data);
+    else if (e.method === 8){
+      if (typeof DecompressionStream === "undefined")
+        throw new Error("This browser cannot decompress xlsx files. Please use a recent Chrome, Edge or Safari.");
+      const stream = new Blob([e.data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+      files[e.name] = await new Response(stream).text();
+    }
+  }
+  return files;
+}
+
+const xml = s => new DOMParser().parseFromString(s, "application/xml");
+const norm = s => String(s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+function colIndex(ref){
+  let n = 0;
+  for (const ch of ref){ if (ch >= "A" && ch <= "Z") n = n * 26 + (ch.charCodeAt(0) - 64); else break; }
+  return n - 1;
+}
+
+function readSheet(sheetXml, shared){
+  const doc = xml(sheetXml);
+  const rows = [];
+  const rowEls = doc.getElementsByTagName("row");
+  for (const row of rowEls){
+    const cells = {};
+    for (const c of row.getElementsByTagName("c")){
+      const ref = c.getAttribute("r") || "";
+      const t = c.getAttribute("t");
+      let v = "";
+      if (t === "s"){
+        const n = parseInt(c.getElementsByTagName("v")[0]?.textContent ?? "-1");
+        v = shared[n] ?? "";
+      } else if (t === "inlineStr"){
+        v = Array.from(c.getElementsByTagName("t")).map(x => x.textContent).join("");
+      } else {
+        v = c.getElementsByTagName("v")[0]?.textContent ?? "";
+      }
+      cells[colIndex(ref)] = v;
+    }
+    rows.push(cells);
+  }
+  return rows;
+}
+
+// header lookup: exact normalized match first, then "contains"
+function findCol(headers, key){
+  const k = norm(key);
+  let idx = headers.findIndex(h => h.n === k);
+  if (idx >= 0) return idx;
+  idx = headers.findIndex(h => h.n.includes(k));
+  return idx;
+}
+
+async function parseXlsx(buf){
+  const files = await unzip(buf);
+  if (!files["xl/workbook.xml"]) throw new Error("Workbook structure not found in this file.");
+  const shared = [];
+  if (files["xl/sharedStrings.xml"]){
+    const sst = xml(files["xl/sharedStrings.xml"]);
+    for (const si of sst.getElementsByTagName("si"))
+      shared.push(Array.from(si.getElementsByTagName("t")).map(t => t.textContent).join(""));
+  }
+  // map r:id -> sheet file
+  const rels = xml(files["xl/_rels/workbook.xml.rels"] || "<Relationships/>");
+  const relMap = {};
+  for (const r of rels.getElementsByTagName("Relationship"))
+    relMap[r.getAttribute("Id")] = "xl/" + r.getAttribute("Target").replace(/^\//, "");
+
+  const wb = xml(files["xl/workbook.xml"]);
+  const sheets = Array.from(wb.getElementsByTagName("sheet")).map(s => ({
+    name: s.getAttribute("name"),
+    rid: s.getAttribute("r:id") || s.getAttribute("id")
+  }));
+
+  // read every sheet's first rows, score which one is the bill-details sheet
+  let best = null;
+  for (const s of sheets){
+    const path = relMap[s.rid];
+    if (!path || !files[path]) continue;
+    const rows = readSheet(files[path], shared);
+    if (!rows.length) continue;
+    const headers = Object.entries(rows[0]).map(([i, v]) => ({ i: +i, v, n: norm(v) }));
+    const has = k => findCol(headers, k) >= 0;
+    let score = 0;
+    if (/bill.?detail/i.test(s.name)) score += 100;
+    if (has("Owner Account ID")) score += 3;
+    if (has("Original Cost")) score += 3;
+    if (has("Transaction ID")) score += 5;
+    if (has("Instance ID")) score += 5;
+    if (has("Usage Start Time")) score += 5;
+    if (has("Total Cost")) score += 1;
+    if (score > (best?.score ?? -1)) best = { score, name: s.name, path, rows, headers };
+  }
+  if (!best || best.score < 4)
+    throw new Error("No bill-details sheet found. Expected a sheet with headers like Owner Account ID, Original Cost, Total Cost.");
+
+  const H = key => findCol(best.headers, key);
+  const cols = {
+    owner: H("Owner Account ID") ?? H("Payer Account ID"),
+    product: H("Product Name") ?? H("ProductName"),
+    origCost: H("Original Cost"),
+    beforeVoucher: H("Total Amount Before Voucher"),
+    voucher: H("Customer Voucher Deduction") ?? H("Voucher Deduction"),
+    tax: H("TaxAmount") ?? H("Tax Amount"),
+    total: H("Total Cost"),
+    currency: H("Currency"),
+    payStatus: H("Payment Status"),
+    usageStart: H("Usage Start Time"),
+    usageEnd: H("Usage End Time")
+  };
+  return { sheetName: best.name, rows: best.rows.slice(1), cols };
+}
+
+const num = v => { const n = parseFloat(String(v ?? "").replace(/,/g, "")); return isNaN(n) ? 0 : n; };
+function excelDate(v){
+  if (v === undefined || v === "") return "";
+  const n = parseFloat(v);
+  if (isNaN(n)) return String(v).slice(0, 10);
+  return new Date(Math.round((n - 25569) * 86400000)).toISOString().slice(0, 10);
+}
+
+function buildCustomers(parsed){
+  const map = new Map();
+  for (const r of parsed.rows){
+    const get = c => (c >= 0 && c !== null ? r[c] : "");
+    const owner = String(get(parsed.cols.owner) || "Unknown account").trim();
+    if (!map.has(owner)) map.set(owner, {
+      id: owner, name: owner,
+      currency: String(get(parsed.cols.currency) || "USD").trim(),
+      ownCost: 0, afterDisc: 0, voucher: 0, tax: 0, final: 0, count: 0,
+      products: new Map(), start: "", end: "", payStatus: new Set()
+    });
+    const c = map.get(owner);
+    c.ownCost += num(get(parsed.cols.origCost));
+    c.afterDisc += num(get(parsed.cols.beforeVoucher));
+    c.voucher += num(get(parsed.cols.voucher));
+    c.tax += num(get(parsed.cols.tax));
+    c.final += num(get(parsed.cols.total));
+    c.count++;
+    const pn = String(get(parsed.cols.product) || "Other").trim();
+    if (!c.products.has(pn)) c.products.set(pn, { name: pn, ownCost: 0, final: 0 });
+    const p = c.products.get(pn);
+    p.ownCost += num(get(parsed.cols.origCost));
+    p.final += num(get(parsed.cols.total));
+    const s = excelDate(get(parsed.cols.usageStart)), e = excelDate(get(parsed.cols.usageEnd));
+    if (s && (!c.start || s < c.start)) c.start = s;
+    if (e && (!c.end || e > c.end)) c.end = e;
+    const ps = String(get(parsed.cols.payStatus) || "").trim();
+    if (ps) c.payStatus.add(ps);
+  }
+  return Array.from(map.values()).map(c => ({
+    ...c,
+    discount: c.ownCost - c.afterDisc,
+    products: Array.from(c.products.values()).sort((a, b) => b.final - a.final)
+  })).sort((a, b) => b.final - a.final);
+}
+
+/* ================================================================
+   CUSTOMER NAME MAP — saved locally, auto-applied on every import
+   (this is the ONLY thing remembered between visits, by request)
+   ================================================================ */
+const NAME_KEY = "cit-account-names";
+function loadNames(){ try { return JSON.parse(localStorage.getItem(NAME_KEY)) || {}; } catch { return {}; } }
+function saveName(id, name){
+  const m = loadNames(); m[id] = name;
+  try { localStorage.setItem(NAME_KEY, JSON.stringify(m)); } catch {}
+}
+function applyNames(list){
+  const m = loadNames();
+  for (const c of list){
+    if (m[c.id]){ c.name = m[c.id]; c.named = true; }
+  }
+  return list;
+}
+
+/* ================================================================
+   APP STATE + SAMPLE DATA (fictional cloud consumption accounts)
+   ================================================================ */
+let customers = applyNames([
+  { id:"200010001001", name:"Kedai Kopi Cahaya", currency:"USD",
+    ownCost:3980, afterDisc:3620, discount:360, voucher:120, tax:0, final:3500, count:14,
+    start:"2026-10-01", end:"2026-10-31", payStatus:new Set(["No Paid"]),
+    products:[{name:"Cloud Virtual Machine(CVM)",ownCost:2200,final:1950},
+              {name:"Cloud Object Storage",ownCost:1100,final:950},
+              {name:"Cloud Public IP",ownCost:680,final:600}] },
+  { id:"200020002002", name:"Nurul Eventz Sdn Bhd", currency:"USD",
+    ownCost:7100, afterDisc:6480, discount:620, voucher:80, tax:0, final:6400, count:9,
+    start:"2026-10-01", end:"2026-10-31", payStatus:new Set(["No Paid"]),
+    products:[{name:"Content Delivery Network",ownCost:4300,final:3900},
+              {name:"TencentDB for MySQL",ownCost:1800,final:1600},
+              {name:"Cloud Load Balancer",ownCost:1000,final:900}] },
+  { id:"200030003003", name:"Teknikal Jaya Enterprise", currency:"USD",
+    ownCost:1900, afterDisc:1750, discount:150, voucher:0, tax:0, final:1750, count:6,
+    start:"2026-10-01", end:"2026-10-31", payStatus:new Set(["No Paid"]),
+    products:[{name:"NAT Gateway",ownCost:900,final:850},
+              {name:"Cloud Firewall",ownCost:700,final:600},
+              {name:"snapshot",ownCost:300,final:300}] }
+]);
+let invoices = [
+  { id: 1, customer: "200010001001", date: "2026-10-28", due: "2026-11-11", amount: 2850.00,
+    breakdown: { original: 3200, discount: 300, voucher: 50, tax: 0, total: 2850,
+      lines: [{ name: "Cloud Virtual Machine(CVM)", original: 1800, discPct: 10, final: 1620 },
+              { name: "Cloud Public IP", original: 1400, discPct: 12.5, final: 1230 }] },
+    note: "Cloud usage 1 Oct – 31 Oct 2026 (partial)", status: "paid", currency: "USD" },
+  { id: 2, customer: "200020002002", date: "2026-10-05", due: "2026-10-19", amount: 6020.00,
+    breakdown: { original: 7100, discount: 700, voucher: 80, tax: 300, total: 6020,
+      lines: [{ name: "Content Delivery Network", original: 4300, discPct: 8, final: 3956 },
+              { name: "TencentDB for MySQL", original: 1800, discPct: 15, final: 1530 },
+              { name: "Cloud Load Balancer", original: 1000, discPct: 14, final: 860 }] },
+    note: "Cloud usage 1 Oct – 31 Oct 2026", status: "late", currency: "USD" }
+];
+let selected = customers[0].id;
+let nextId = 5;
+let sourceLabel = "Sample data (fictional)";
+
+const SYM = { MYR: "RM ", USD: "$", CNY: "¥", SGD: "S$", EUR: "€" };
+function money(cur, n){
+  const s = SYM[cur] || (cur ? cur + " " : "");
+  const abs = Math.abs(n);
+  const dp = abs > 0 && abs < 1 ? 4 : 2;
+  return s + n.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: dp });
+}
+const fmtDate = d => d ? new Date(d).toLocaleDateString("en-MY", {day:"numeric", month:"short", year:"numeric"}) : "";
+const initials = n => n.replace(/[^a-z0-9]/gi, "").slice(0, 2).toUpperCase() || "?";
+const custById = id => customers.find(c => c.id === id);
+
+/* ================================================================
+   RENDER
+   ================================================================ */
+function renderCustomers(){
+  const el = document.getElementById("customerList");
+  el.innerHTML = "";
+  customers.forEach(c => {
+    const invs = invoices.filter(i => i.customer === c.id);
+    const late = invs.filter(i => i.status === "late").length;
+    const div = document.createElement("div");
+    div.className = "cust" + (c.id === selected ? " active" : "");
+    div.innerHTML = `
+      <div class="avatar">${initials(c.name)}</div>
+      <div class="cust-info"><strong>${c.name}</strong>
+        <small>${c.named ? c.id + " · " : ""}${c.count} txn${c.count !== 1 ? "s" : ""} · ${c.currency}${invs.length ? " · " + invs.length + " inv" : ""}${late ? " · " + late + " late" : ""}</small></div>
+      <div class="cust-stats"><b>${money(c.currency, c.final)}</b><small>bill total</small></div>`;
+    div.addEventListener("click", () => { selected = c.id; renderAll(); });
+    el.appendChild(div);
+  });
+}
+
+function renderPivot(){
+  const c = custById(selected);
+  const box = document.getElementById("pivotBox");
+  if (!c){ box.style.display = "none"; return; }
+  box.style.display = "";
+  const range = c.start && c.end ? `${fmtDate(c.start)} – ${fmtDate(c.end)}` : "";
+  const ps = Array.from(c.payStatus).join(", ");
+  box.innerHTML = `
+    <h3>Billing summary — ${c.name}${c.named ? ` <small>(${c.id})</small>` : ""} <small>(${sourceLabel}${range ? " · " + range : ""}${ps ? " · " + ps : ""})</small></h3>
+    <div class="pgrid">
+      <div class="pbox p-own"><b>${money(c.currency, c.ownCost)}</b><small>OWN COST</small></div>
+      <div class="pbox p-disc"><b>− ${money(c.currency, c.discount)}</b><small>DISCOUNT</small></div>
+      <div class="pbox p-vou"><b>− ${money(c.currency, c.voucher)}</b><small>VOUCHER</small></div>
+      <div class="pbox p-tax"><b>+ ${money(c.currency, c.tax)}</b><small>TAX</small></div>
+      <div class="pbox p-disc"><b>= ${money(c.currency, c.ownCost - c.discount - c.voucher)}</b><small>AFTER DISC + VOUCHER</small></div>
+      <div class="pbox p-fin"><b>${money(c.currency, c.final)}</b><small>FINAL TOTAL COST (INCL. TAX)</small></div>
+    </div>
+    ${c.products.length ? `<table>
+      <thead><tr><th>Product</th><th>Own cost</th><th>Final</th></tr></thead>
+      <tbody>${c.products.map(p => `
+        <tr><td>${p.name}</td><td>${money(c.currency, p.ownCost)}</td><td>${money(c.currency, p.final)}</td></tr>`).join("")}
+      </tbody></table>` : ""}`;
+}
+
+function renderForm(){
+  const sel = document.getElementById("fCustomer");
+  sel.innerHTML = "";
+  customers.forEach(c => {
+    const o = document.createElement("option");
+    o.value = c.id; o.textContent = c.named ? `${c.name} (${c.id})` : c.id;
+    sel.appendChild(o);
+  });
+  sel.value = selected;
+  sel.onchange = () => { selected = sel.value; renderAll(); };
+  const c = custById(selected);
+  document.getElementById("issueFor").textContent = "for " + (c ? (c.named ? c.name : c.id) : "");
+
+  const src = document.getElementById("billSrc");
+  if (c){
+    const range = c.start && c.end ? ` (${fmtDate(c.start)} – ${fmtDate(c.end)})` : "";
+    src.style.display = "";
+    src.innerHTML = `Excel bill (your cost)${range}: original <b>${money(c.currency, c.ownCost)}</b> − your discount <b>${money(c.currency, c.discount)}</b> − voucher <b>${money(c.currency, c.voucher)}</b> + tax <b>${money(c.currency, c.tax)}</b> = <b>${money(c.currency, c.final)}</b>`;
+
+    // customer name input: pre-filled if a saved name exists
+    const nameInput = document.getElementById("fCustName");
+    nameInput.value = c.named ? c.name : "";
+    nameInput.onchange = () => {
+      const n = nameInput.value.trim();
+      if (n){ c.name = n; c.named = true; saveName(c.id, n); }
+      else { c.name = c.id; c.named = false; saveName(c.id, ""); }
+      renderAll();
+    };
+
+    // per-product rows from the imported bill
+    const rows = document.getElementById("prodRows");
+    rows.innerHTML = `<div class="prow-head"><span>Product</span><span>Cost</span><span>Disc %</span><span>Final</span></div>`;
+    c.products.forEach((p, i) => {
+      const div = document.createElement("div");
+      div.className = "prow";
+      div.innerHTML = `
+        <div class="plabel" title="${p.name}">${p.name}</div>
+        <input type="number" min="0" step="0.01" data-orig="${i}" value="${p.ownCost}">
+        <input type="number" min="0" max="100" step="0.5" data-disc="${i}" placeholder="0">
+        <div class="pfinal" data-final="${i}">${money(c.currency, p.ownCost)}</div>`;
+      rows.appendChild(div);
+    });
+    rows.querySelectorAll("input").forEach(inp => inp.addEventListener("input", updateCalc));
+
+    if (document.getElementById("fNote").dataset.auto !== "0")
+      { document.getElementById("fNote").value = `Cloud usage ${range ? fmtDate(c.start) + " – " + fmtDate(c.end) : "for this billing period"}`; document.getElementById("fNote").dataset.auto = "1"; }
+  } else src.style.display = "none";
+  updateCalc();
+}
+
+function formBreakdown(){
+  // gather per-product rows into an invoice breakdown
+  const c = custById(selected);
+  if (!c) return null;
+  const lines = [];
+  let original = 0, discount = 0;
+  c.products.forEach((p, i) => {
+    const origEl = document.querySelector(`#prodRows [data-orig="${i}"]`);
+    const discEl = document.querySelector(`#prodRows [data-disc="${i}"]`);
+    if (!origEl) return;
+    const orig = parseFloat(origEl.value) || 0;
+    const pct = parseFloat(discEl?.value) || 0;
+    const final = orig * (1 - pct / 100);
+    original += orig; discount += orig - final;
+    if (orig > 0) lines.push({ name: p.name, original: orig, discPct: pct, final });
+  });
+  const voucher = Math.min(c.voucher, original - discount); // pass your voucher saving on to the customer, capped
+  const tax = c.tax;
+  const total = original - discount - voucher + tax;
+  return { c, lines, original, discount, voucher, tax, total };
+}
+
+function updateCalc(){
+  const b = formBreakdown();
+  if (!b) { document.getElementById("calcLine").textContent = ""; return; }
+  document.getElementById("calcLine").innerHTML =
+    `Original <b style="color:var(--ink)">${money(b.c.currency, b.original)}</b> − discount <b>${money(b.c.currency, b.discount)}</b> − voucher <b>${money(b.c.currency, b.voucher)}</b> + tax <b>${money(b.c.currency, b.tax)}</b> = <b style="font-size:1.05rem">${money(b.c.currency, b.total)}</b>`;
+  b.lines.forEach((l, i) => {
+    const el = document.querySelector(`#prodRows [data-final="${i}"]`);
+    if (el) el.textContent = money(b.c.currency, l.final);
+  });
+}
+
+function renderTracker(){
+  const c = custById(selected) || { id: selected, name: selected, currency: "MYR" };
+  const invs = invoices.filter(i => i.customer === selected).sort((a, b) => b.id - a.id);
+  const paid = invs.filter(i => i.status === "paid").reduce((s, i) => s + i.amount, 0);
+  const due = invs.filter(i => i.status !== "paid").reduce((s, i) => s + i.amount, 0);
+  document.getElementById("trackFor").textContent = c.named ? `${c.name} (${c.id})` : c.name;
+
+  document.getElementById("totals").innerHTML = `
+    <div class="total-box t-all"><b>${money(c.currency, paid + due)}</b><small>TOTAL BILLED</small></div>
+    <div class="total-box t-paid"><b>${money(c.currency, paid)}</b><small>PAID</small></div>
+    <div class="total-box t-due"><b>${money(c.currency, due)}</b><small>OUTSTANDING</small></div>`;
+
+  const recEl = document.getElementById("reconLine");
+  if (custById(selected) && (paid + due) > 0){
+    const bill = custById(selected).final;
+    const diff = bill - (paid + due);
+    recEl.style.display = "";
+    recEl.innerHTML = diff > 0.005
+      ? `Excel bill <b>${money(c.currency, bill)}</b> − invoiced so far <b>${money(c.currency, paid + due)}</b> = <b>${money(c.currency, diff)}</b> not yet invoiced`
+      : diff < -0.005
+        ? `Invoiced <b>${money(c.currency, paid + due)}</b> exceeds the Excel bill <b>${money(c.currency, bill)}</b> by <b>${money(c.currency, -diff)}</b>`
+        : `Fully invoiced: invoices match the Excel bill total of <b>${money(c.currency, bill)}</b> ✓`;
+  } else recEl.style.display = "none";
+
+  const list = document.getElementById("invoiceList");
+  if (!invs.length){
+    list.innerHTML = '<div class="empty">No invoices yet for this customer.</div>';
+    return;
+  }
+  list.innerHTML = "";
+  invs.forEach(inv => {
+    const div = document.createElement("div");
+    div.className = "inv";
+    const bd = inv.breakdown;
+    const bdHtml = bd ? `
+      <table class="inv-table">
+        <thead><tr><th>Product</th><th>Original</th><th>Disc %</th><th>Final</th></tr></thead>
+        <tbody>${bd.lines.map(l => `
+          <tr><td>${l.name}</td><td>${money(inv.currency, l.original)}</td><td>${l.discPct ? l.discPct + "%" : "—"}</td><td>${money(inv.currency, l.final)}</td></tr>`).join("")}
+        </tbody>
+      </table>
+      <div class="inv-sub inv-sum">
+        <span>Original <b>${money(inv.currency, bd.original)}</b> · Discount <b>−${money(inv.currency, bd.discount)}</b> · Voucher <b>−${money(inv.currency, bd.voucher)}</b> · Tax <b>+${money(inv.currency, bd.tax)}</b></span>
+        <span class="amt">Total <b>${money(inv.currency, bd.total)}</b></span>
+      </div>` : "";
+    div.innerHTML = `
+      <div class="inv-top"><strong>INV-${String(inv.id).padStart(3, "0")}</strong><span class="amt">${money(inv.currency, inv.amount)}</span></div>
+      <div class="inv-sub">
+        <span>${fmtDate(inv.date)} → due ${fmtDate(inv.due)}</span>
+        <span class="badge b-${inv.status}">${inv.status.toUpperCase()}</span>
+      </div>
+      ${inv.note ? `<div class="inv-sub"><span>${inv.note}</span></div>` : ""}
+      ${bdHtml}
+      <div class="inv-actions">
+        <button data-status="paid" class="chip paid ${inv.status === "paid" ? "sel" : ""}">Mark Paid</button>
+        <button data-status="unpaid" class="chip unpaid ${inv.status === "unpaid" ? "sel" : ""}">Mark Unpaid</button>
+        <button data-status="late" class="chip late ${inv.status === "late" ? "sel" : ""}">Mark Late</button>
+      </div>`;
+    div.querySelectorAll(".chip").forEach(btn => {
+      btn.addEventListener("click", () => { inv.status = btn.dataset.status; renderTracker(); });
+    });
+    list.appendChild(div);
+  });
+}
+
+function renderAll(){
+  renderCustomers();
+  renderPivot();
+  renderForm();
+  renderTracker();
+}
+
+/* ================================================================
+   ISSUE INVOICE
+   ================================================================ */
+document.getElementById("invoiceForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const b = formBreakdown();
+  if (!b || !b.lines.length || b.total <= 0) return;
+  const date = document.getElementById("fDate").value;
+  const due = document.getElementById("fDue").value;
+  if (!date || !due) return;
+  // persist any newly typed customer name
+  const nameVal = document.getElementById("fCustName").value.trim();
+  if (nameVal && nameVal !== b.c.name){ b.c.name = nameVal; b.c.named = true; saveName(b.c.id, nameVal); }
+  invoices.push({ id: nextId++, customer: b.c.id, date, due, amount: b.total,
+    breakdown: { original: b.original, discount: b.discount, voucher: b.voucher, tax: b.tax, total: b.total, lines: b.lines },
+    note: document.getElementById("fNote").value.trim(), status: "unpaid", currency: b.c.currency });
+  selected = b.c.id;
+  const t = new Date(), iso = d => d.toISOString().slice(0, 10);
+  document.getElementById("fDate").value = iso(t);
+  const dd = new Date(t); dd.setDate(dd.getDate() + 14);
+  document.getElementById("fDue").value = iso(dd);
+  document.getElementById("fNote").dataset.auto = "";
+  renderAll();
+  document.getElementById("trackFor").scrollIntoView({behavior: "smooth", block: "start"});
+});
+
+/* ================================================================
+   IMPORT
+   ================================================================ */
+document.getElementById("fileInput").addEventListener("change", async e => {
+  const file = e.target.files[0];
+  const status = document.getElementById("importStatus");
+  status.className = "import-status"; status.textContent = "";
+  if (!file) return;
+  try {
+    status.classList.add("ok");
+    status.textContent = `Reading ${file.name}…`;
+    const parsed = await parseXlsx(await file.arrayBuffer());
+    const imported = applyNames(buildCustomers(parsed));
+    if (!imported.length) throw new Error("The sheet was found but contains no data rows.");
+    customers = imported;
+    const known = customers.filter(c => c.named).length;
+    sourceLabel = `from sheet “${parsed.sheetName}”`;
+    selected = customers[0].id;
+    renderAll();
+    status.classList.remove("ok"); status.classList.add("ok");
+    status.textContent = `✓ Imported ${parsed.rows.length} transactions for ${customers.length} Owner Account${customers.length !== 1 ? "s" : ""} from “${parsed.sheetName}”.${known ? ` ${known} account${known !== 1 ? "s were" : " was"} automatically matched to saved customer name${known !== 1 ? "s" : ""}.` : ""} Sample data was replaced.`;
+  } catch (err) {
+    status.className = "import-status err";
+    status.textContent = "✗ " + err.message;
+  }
+  e.target.value = "";
+});
+
+/* ---------- Init ---------- */
+(function init(){
+  const t = new Date(), iso = d => d.toISOString().slice(0, 10);
+  document.getElementById("fDate").value = iso(t);
+  const due = new Date(t); due.setDate(due.getDate() + 14);
+  document.getElementById("fDue").value = iso(due);
+  document.getElementById("fNote").addEventListener("input", e => { e.target.dataset.auto = "0"; });
+  renderAll();
+})();
+</script>
+</body>
+</html>
